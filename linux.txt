@@ -1,0 +1,678 @@
+NFS
+
+yum install nfs-utils
+
+mkdir /share
+chmod -R 755 /share
+chown nfsnobody:nfsnobody /share
+
+systemctl enable rpcbind
+systemctl enable nfs-server
+systemctl enable nfs-lock
+systemctl enable nfs-idmap
+systemctl start rpcbind
+systemctl start nfs-server
+systemctl start nfs-lock
+systemctl start nfs-idmap
+
+systemctl status nfs-server
+● nfs-server.service - NFS server and services
+   Loaded: loaded (/usr/lib/systemd/system/nfs-server.service; enabled; vendor preset: disabled)
+   Active: active (exited) since Mon 2021-05-10 09:23:21 CDT; 43min ago
+  Process: 1977 ExecStopPost=/usr/sbin/exportfs -f (code=exited, status=0/SUCCESS)
+  Process: 1974 ExecStopPost=/usr/sbin/exportfs -au (code=exited, status=0/SUCCESS)
+  Process: 1972 ExecStop=/usr/sbin/rpc.nfsd 0 (code=exited, status=0/SUCCESS)
+  Process: 2009 ExecStartPost=/bin/sh -c if systemctl -q is-active gssproxy; then systemctl reload gssproxy ; fi (code=exited, status=0/SUCCESS)
+  Process: 1992 ExecStart=/usr/sbin/rpc.nfsd $RPCNFSDARGS (code=exited, status=0/SUCCESS)
+  Process: 1989 ExecStartPre=/usr/sbin/exportfs -r (code=exited, status=0/SUCCESS)
+ Main PID: 1992 (code=exited, status=0/SUCCESS)
+   CGroup: /system.slice/nfs-server.service
+
+May 10 09:23:21 centos7 systemd[1]: Starting NFS server and services...
+May 10 09:23:21 centos7 systemd[1]: Started NFS server and services.
+
+
+
+netstat -an | grep LIST
+tcp        0      0 127.0.0.1:25            0.0.0.0:*               LISTEN     
+tcp        0      0 0.0.0.0:2049            0.0.0.0:*               LISTEN     
+tcp        0      0 0.0.0.0:35620           0.0.0.0:*               LISTEN     
+tcp        0      0 0.0.0.0:33733           0.0.0.0:*               LISTEN     
+tcp        0      0 0.0.0.0:111             0.0.0.0:*               LISTEN     
+tcp        0      0 0.0.0.0:20048           0.0.0.0:*               LISTEN     
+tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN     
+tcp6       0      0 ::1:25                  :::*                    LISTEN 
+
+/etc/exports
+/share   192.168.2.205(rw,sync,no_root_squash,no_all_squash)
+
+systemctl restart nfs-server
+
+firewall-cmd --permanent --zone=public --add-service=nfs
+firewall-cmd --permanent --zone=public --add-service=mountd
+firewall-cmd --permanent --zone=public --add-service=rpc-bind
+firewall-cmd --reload
+
+showmount -e
+Export list for centos7:
+/share 192.168.2.205
+
+
+mkdir /mnt/share
+mount -t nfs 192.168.2.201:/share /mnt/share
+
+
+df -h
+Filesystem                                  Size  Used Avail Use% Mounted on
+devtmpfs                                    3.8G     0  3.8G   0% /dev
+tmpfs                                       3.8G     0  3.8G   0% /dev/shm
+tmpfs                                       3.8G  8.5M  3.8G   1% /run
+tmpfs                                       3.8G     0  3.8G   0% /sys/fs/cgroup
+/dev/mapper/centos_centos7--app--serv-root   48G  1.9G   47G   4% /
+/dev/sda1                                  1014M  194M  821M  20% /boot
+/dev/mapper/centos_centos7--app--serv-home   24G   33M   24G   1% /home
+tmpfs                                       764M     0  764M   0% /run/user/0
+192.168.2.201:/share                         50G   19G   32G  38% /mnt/share
+
+/etc/fstab
+192.168.2.201:/share    /mnt/share   nfs defaults 0 0
+
+===================================
+
+SMB
+yum install cifs-utils
+mount -t cifs -o username=user1  //192.168.2.202/share /mnt/smb
+
+/etc/fstab
+//192.168.2.202/share /mnt/smb cifs username=user1,password=Alex1977 0 0
+
+===================================
+SMB -> WIN
+yum install samba samba-client samba-common
+firewall-cmd --permanent --zone=public --add-service=samba
+firewall-cmd --reload
+
+
+
+mkdir -p /srv/samba/anonymous
+chmod -R 0775 /srv/samba/anonymous
+chown -R nobody:nobody /srv/samba/anonymous
+
+chcon -t samba_share_t /srv/samba/anonymous
+
+/etc/samba/smb.conf
+
+[global]
+	workgroup = WORKGROUP
+	netbios name = centos
+	security = user
+[Anonymous]
+        comment = Anonymous File Server Share
+        path = /srv/samba/anonymous
+        browsable =yes
+        writable = yes
+        guest ok = yes
+        read only = no
+        force user = nobody
+
+
+groupadd smbgrp
+useradd user1 -aG smbgrp
+smbpasswd -a user1
+
+mkdir -p /srv/samba/secure
+chmod -R 0770 /srv/samba/secure
+chown -R root:smbgrp /srv/samba/secure
+chcon -t samba_share_t /srv/samba/secure
+
+/etc/samba/smb.conf
+[Secure]
+	comment = Secure File Server Share
+	path =  /srv/samba/secure
+	valid users = @smbgrp
+	guest ok = no
+	writable = yes
+	browsable = yes
+
+testparm
+
+
+systemctl enable smb.service
+systemctl enable nmb.service
+systemctl start smb.service
+systemctl start nmb.service
+
+===================================
+SFTP
+mkdir -p /data/sftp
+chmod 701 /data
+
+groupadd sftpusers
+useradd -g sftpusers -d /upload -s /sbin/nologin mysftpuser
+passwd mysftpuser
+
+mkdir -p /data/mysftpuser/upload
+chown -R root:sftpusers /data/mysftpuser
+chown -R mysftpuser:sftpusers /data/mysftpuser/upload
+
+/etc/ssh/sshd_config
+Match Group sftpusers
+ChrootDirectory /data/%u
+ForceCommand internal-sftp
+
+systemctl restart sshd
+
+sftp mysftpuser@192.168.2.201
+===================================
+DNS
+yum install bind bind-utils -y
+/etc/named.conf
+listen-on port 53 { 127.0.0.1; 192.168.2.201;};
+....
+allow-query     { localhost; 192.168.2.0/24;}; ### IP Range ###
+...
+zone "unixmen.local" IN {
+type master;
+file "forward.unixmen";
+allow-update { none; };
+};
+zone "2.168.192.in-addr.arpa" IN {
+type master;
+file "reverse.unixmen";
+allow-update { none; };
+};
+
+vi /var/named/forward.unixmen
+$TTL 86400
+@   IN  SOA     masterdns.unixmen.local. root.unixmen.local. (
+        2011071001  ;Serial
+        3600        ;Refresh
+        1800        ;Retry
+        604800      ;Expire
+        86400       ;Minimum TTL
+)
+@       IN  NS          masterdns.unixmen.local.
+@       IN  NS          secondarydns.unixmen.local.
+@       IN  A           192.168.2.201
+@       IN  A           192.168.2.201
+@       IN  A           192.168.2.201
+masterdns       IN  A   192.168.2.201
+secondarydns    IN  A   192.168.2.201
+client          IN  A   192.168.2.202
+
+vi /var/named/reverse.unixmen
+$TTL 86400
+@   IN  SOA     masterdns.unixmen.local. root.unixmen.local. (
+        2011071001  ;Serial
+        3600        ;Refresh
+        1800        ;Retry
+        604800      ;Expire
+        86400       ;Minimum TTL
+)
+@       IN  NS          masterdns.unixmen.local.
+@       IN  NS          secondarydns.unixmen.local.
+@       IN  PTR         unixmen.local.
+masterdns       IN  A   192.168.2.201
+secondarydns    IN  A   192.168.2.201
+client          IN  A   192.168.2.202
+101     IN  PTR         masterdns.unixmen.local.
+102     IN  PTR         secondarydns.unixmen.local.
+103     IN  PTR         client.unixmen.local.
+
+
+systemctl enable named
+systemctl start named
+
+
+firewall-cmd --permanent --add-port=53/tcp
+firewall-cmd --permanent --add-port=53/udp
+firewall-cmd --reload
+
+SELINUX
+chgrp named -R /var/named
+chown -v root:named /etc/named.conf
+restorecon -rv /var/named
+restorecon /etc/named.conf
+
+named-checkzone unixmen.local /var/named/forward.unixmen
+named-checkzone unixmen.local /var/named/reverse.unixmen 
+
+===================================
+TOMCAT
+JDK
+rpm -ihv jdk-8u291-linux-x64.rpm
+
+
+USER
+groupadd tomcat
+useradd -M -s /bin/nologin -g tomcat -d /opt/tomcat tomcat
+
+INSTALL YUM
+yum install wget
+
+GET TOMCAT
+wget https://downloads.apache.org/tomcat/tomcat-8/v8.5.65/bin/apache-tomcat-8.5.65.tar.gz
+
+COPY TOMCAT
+mkdir /opt/tomcat
+tar xvf apache-tomcat-8*tar.gz -C /opt/tomcat --strip-components=1
+
+PERMISSIONS
+cd /opt/tomcat
+chgrp -R tomcat /opt/tomcat
+
+chmod -R g+r conf
+chmod g+x conf
+chown -R tomcat webapps/ work/ temp/ logs/
+
+
+SERVICE
+/etc/systemd/system/tomcat.service
+
+# Systemd unit file for tomcat
+[Unit]
+Description=Apache Tomcat Web Application Container
+After=syslog.target network.target
+
+[Service]
+Type=forking
+
+Environment=JAVA_HOME=/usr/java/latest/jre
+Environment=CATALINA_PID=/opt/tomcat/temp/tomcat.pid
+Environment=CATALINA_HOME=/opt/tomcat
+Environment=CATALINA_BASE=/opt/tomcat
+Environment='CATALINA_OPTS=-Xms512M -Xmx1024M -server -XX:+UseParallelGC'
+Environment='JAVA_OPTS=-Djava.awt.headless=true -Djava.security.egd=file:/dev/./urandom'
+
+ExecStart=/opt/tomcat/bin/startup.sh
+ExecStop=/bin/kill -15 $MAINPID
+
+User=tomcat
+Group=tomcat
+UMask=0007
+RestartSec=10
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
+
+RELOAD SERVICE
+systemctl daemon-reload
+
+systemctl start tomcat
+
+FIREWALL
+firewall-cmd --zone=public --add-port=8080/tcp --permanent
+firewall-cmd --reload
+
+TOMCAT CONFIG
+
+/opt/tomcat/conf/tomcat-users.xml
+<tomcat-users>
+    <user username="admin" password="password" roles="manager-gui,admin-gui"/>
+</tomcat-users>
+
+/opt/tomcat/webapps/manager/META-INF/context.xml
+/opt/tomcat/webapps/host-manager/META-INF/context.xml
+
+===================================
+DISK -> PV -> VG -> LV
+
+
+fdisk -l
+.....
+Disk /dev/sdb: 10.7 GB, 10737418240 bytes, 20971520 sectors
+Units = sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+
+
+
+fdisk /dev/sdb
+Welcome to fdisk (util-linux 2.23.2).
+
+Changes will remain in memory only, until you decide to write them.
+Be careful before using the write command.
+
+Device does not contain a recognized partition table
+Building a new DOS disklabel with disk identifier 0x84beac52.
+
+Command (m for help): n
+Partition type:
+   p   primary (0 primary, 0 extended, 4 free)
+   e   extended
+Select (default p): p
+Partition number (1-4, default 1): 
+First sector (2048-20971519, default 2048): 
+Using default value 2048
+Last sector, +sectors or +size{K,M,G} (2048-20971519, default 20971519): 
+Using default value 20971519
+Partition 1 of type Linux and of size 10 GiB is set
+
+Command (m for help): p
+
+Disk /dev/sdb: 10.7 GB, 10737418240 bytes, 20971520 sectors
+Units = sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disk label type: dos
+Disk identifier: 0x84beac52
+
+   Device Boot      Start         End      Blocks   Id  System
+/dev/sdb1            2048    20971519    10484736   83  Linux
+
+Command (m for help): t
+Selected partition 1
+Hex code (type L to list all codes): 	L
+
+ 0  Empty           24  NEC DOS         81  Minix / old Lin bf  Solaris        
+ 1  FAT12           27  Hidden NTFS Win 82  Linux swap / So c1  DRDOS/sec (FAT-
+ 2  XENIX root      39  Plan 9          83  Linux           c4  DRDOS/sec (FAT-
+ 3  XENIX usr       3c  PartitionMagic  84  OS/2 hidden C:  c6  DRDOS/sec (FAT-
+ 4  FAT16 <32M      40  Venix 80286     85  Linux extended  c7  Syrinx         
+ 5  Extended        41  PPC PReP Boot   86  NTFS volume set da  Non-FS data    
+ 6  FAT16           42  SFS             87  NTFS volume set db  CP/M / CTOS / .
+ 7  HPFS/NTFS/exFAT 4d  QNX4.x          88  Linux plaintext de  Dell Utility   
+ 8  AIX             4e  QNX4.x 2nd part 8e  Linux LVM       df  BootIt         
+ 9  AIX bootable    4f  QNX4.x 3rd part 93  Amoeba          e1  DOS access     
+ a  OS/2 Boot Manag 50  OnTrack DM      94  Amoeba BBT      e3  DOS R/O        
+ b  W95 FAT32       51  OnTrack DM6 Aux 9f  BSD/OS          e4  SpeedStor      
+ c  W95 FAT32 (LBA) 52  CP/M            a0  IBM Thinkpad hi eb  BeOS fs        
+ e  W95 FAT16 (LBA) 53  OnTrack DM6 Aux a5  FreeBSD         ee  GPT            
+ f  W95 Ext'd (LBA) 54  OnTrackDM6      a6  OpenBSD         ef  EFI (FAT-12/16/
+10  OPUS            55  EZ-Drive        a7  NeXTSTEP        f0  Linux/PA-RISC b
+11  Hidden FAT12    56  Golden Bow      a8  Darwin UFS      f1  SpeedStor      
+12  Compaq diagnost 5c  Priam Edisk     a9  NetBSD          f4  SpeedStor      
+14  Hidden FAT16 <3 61  SpeedStor       ab  Darwin boot     f2  DOS secondary  
+16  Hidden FAT16    63  GNU HURD or Sys af  HFS / HFS+      fb  VMware VMFS    
+17  Hidden HPFS/NTF 64  Novell Netware  b7  BSDI fs         fc  VMware VMKCORE 
+18  AST SmartSleep  65  Novell Netware  b8  BSDI swap       fd  Linux raid auto
+1b  Hidden W95 FAT3 70  DiskSecure Mult bb  Boot Wizard hid fe  LANstep        
+1c  Hidden W95 FAT3 75  PC/IX           be  Solaris boot    ff  BBT            
+1e  Hidden W95 FAT1 80  Old Minix      
+Hex code (type L to list all codes): 8e
+Changed type of partition 'Linux' to 'Linux LVM'
+
+Command (m for help): p
+
+Disk /dev/sdb: 10.7 GB, 10737418240 bytes, 20971520 sectors
+Units = sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disk label type: dos
+Disk identifier: 0x84beac52
+
+   Device Boot      Start         End      Blocks   Id  System
+/dev/sdb1            2048    20971519    10484736   8e  Linux LVM
+
+Command (m for help): w
+The partition table has been altered!
+
+Calling ioctl() to re-read partition table.
+Syncing disks.
+
+
+pvcreate /dev/sdb1
+  Physical volume "/dev/sdb1" successfully created.
+
+
+lvmdiskscan
+  /dev/sda1 [       1.00 GiB] 
+  /dev/sda2 [     <79.00 GiB] LVM physical volume
+  /dev/sdb1 [     <10.00 GiB] LVM physical volume
+  0 disks
+  1 partition
+  0 LVM physical volume whole disks
+  2 LVM physical volumes
+
+
+
+pvdisplay
+  --- Physical volume ---
+  PV Name               /dev/sda2
+  VG Name               centos_centos7-app-serv
+  PV Size               <79.00 GiB / not usable 3.00 MiB
+  Allocatable           yes 
+  PE Size               4.00 MiB
+  Total PE              20223
+  Free PE               1
+  Allocated PE          20222
+  PV UUID               K4g7nv-hx1o-ITHC-j0ec-qrdd-4mUR-rAlizq
+   
+  "/dev/sdb1" is a new physical volume of "<10.00 GiB"
+  --- NEW Physical volume ---
+  PV Name               /dev/sdb1
+  VG Name               
+  PV Size               <10.00 GiB
+  Allocatable           NO
+  PE Size               0   
+  Total PE              0
+  Free PE               0
+  Allocated PE          0
+  PV UUID               q8OwGu-8phY-uTiX-06Ho-iT5t-1j1d-mzCSqX
+
+
+
+pvscan
+  PV /dev/sda2   VG centos_centos7-app-serv   lvm2 [<79.00 GiB / 4.00 MiB free]
+  PV /dev/sdb1                                lvm2 [<10.00 GiB]
+  Total: 2 [<89.00 GiB] / in use: 1 [<79.00 GiB] / in no VG: 1 [<10.00 GiB]
+
+
+
+vgcreate vg_newlvm /dev/sdb1
+  Volume group "vg_newlvm" successfully created
+
+
+lvcreate --name centos7_newvol -l 100%FREE vg_newlvm
+  Logical volume "centos7_newvol" created.
+
+lvdisplay
+ --- Logical volume ---
+  LV Path                /dev/vg_newlvm/centos7_newvol
+  LV Name                centos7_newvol
+  VG Name                vg_newlvm
+  LV UUID                uQL1TO-WipR-TOI4-aGTQ-OmZG-eGFB-MT8i9y
+  LV Write Access        read/write
+  LV Creation host, time centos7-app-serv, 2021-05-10 14:53:08 -0500
+  LV Status              available
+  # open                 0
+  LV Size                <10.00 GiB
+  Current LE             2559
+  Segments               1
+  Allocation             inherit
+  Read ahead sectors     auto
+  - currently set to     8192
+  Block device           253:3
+....
+
+
+mkfs.ext4 /dev/vg_newlvm/centos7_newvol
+mke2fs 1.42.9 (28-Dec-2013)
+Discarding device blocks: done                            
+Filesystem label=
+OS type: Linux
+Block size=4096 (log=2)
+Fragment size=4096 (log=2)
+Stride=0 blocks, Stripe width=0 blocks
+655360 inodes, 2620416 blocks
+131020 blocks (5.00%) reserved for the super user
+First data block=0
+Maximum filesystem blocks=2151677952
+80 block groups
+32768 blocks per group, 32768 fragments per group
+8192 inodes per group
+Superblock backups stored on blocks: 
+	32768, 98304, 163840, 229376, 294912, 819200, 884736, 1605632
+
+Allocating group tables: done                            
+Writing inode tables: done                            
+Creating journal (32768 blocks): done
+Writing superblocks and filesystem accounting information: done
+
+
+
+mkdir -p /new_data
+mount /dev/vg_newlvm/centos7_newvol /new_data
+
+[root@centos7-app-serv ~]# df -h
+Filesystem                                  Size  Used Avail Use% Mounted on
+devtmpfs                                    3.8G     0  3.8G   0% /dev
+tmpfs                                       3.8G     0  3.8G   0% /dev/shm
+tmpfs                                       3.8G  8.6M  3.8G   1% /run
+tmpfs                                       3.8G     0  3.8G   0% /sys/fs/cgroup
+/dev/mapper/centos_centos7--app--serv-root   48G  2.0G   47G   4% /
+/dev/sda1                                  1014M  194M  821M  20% /boot
+/dev/mapper/centos_centos7--app--serv-home   24G   33M   24G   1% /home
+//192.168.2.202/share                        80G   26G   55G  32% /mnt/smb
+192.168.2.201:/share                         50G   19G   32G  38% /mnt/share
+tmpfs                                       764M     0  764M   0% /run/user/0
+/dev/mapper/vg_newlvm-centos7_newvol        9.8G   37M  9.2G   1% /new_data
+
+
+===================================
+NETWORK INTERFACES
+
+ip a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 96:d3:d4:f3:65:71 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.2.205/24 brd 192.168.2.255 scope global noprefixroute eth0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::ce29:7eb2:e67f:b03c/64 scope link noprefixroute 
+       valid_lft forever preferred_lft forever
+
+
+/etc/sysconfig/network-scripts/ifcfg-eth0
+ifcfg-eth0
+TYPE=Ethernet
+PROXY_METHOD=none
+BROWSER_ONLY=no
+BOOTPROTO=none
+DEFROUTE=yes
+IPV4_FAILURE_FATAL=no
+IPV6INIT=yes
+IPV6_AUTOCONF=yes
+IPV6_DEFROUTE=yes
+IPV6_FAILURE_FATAL=no
+IPV6_ADDR_GEN_MODE=stable-privacy
+NAME=eth0
+UUID=e814c75f-4271-4ad6-b05b-c2ecb8bf79f4
+DEVICE=eth0
+ONBOOT=yes
+IPADDR=192.168.2.205
+PREFIX=24
+GATEWAY=192.168.2.1
+DNS1=192.168.2.1
+DNS2=8.8.8.8
+IPV6_PRIVACY=no
+
+===================================
+LDAPSEARCH
+
+yum install openldap*
+
+ldapsearch -h 192.168.2.206 -x -D "Administrator@test.com" -w Alex1977 -b "dc=test,dc=com" samaccountname=adavila
+# extended LDIF
+#
+# LDAPv3
+# base <dc=test,dc=com> with scope subtree
+# filter: samaccountname=adavila
+# requesting: ALL
+#
+
+# alex davila, Users, test.com
+dn: CN=alex davila,CN=Users,DC=test,DC=com
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: user
+cn: alex davila
+sn: davila
+givenName: alex
+distinguishedName: CN=alex davila,CN=Users,DC=test,DC=com
+instanceType: 4
+whenCreated: 20210511053559.0Z
+whenChanged: 20210511053559.0Z
+displayName: alex davila
+uSNCreated: 12771
+uSNChanged: 12777
+name: alex davila
+objectGUID:: a3v2DWZ7CkW5pkNaus9Hxg==
+userAccountControl: 512
+badPwdCount: 0
+codePage: 0
+countryCode: 0
+badPasswordTime: 0
+lastLogoff: 0
+lastLogon: 0
+pwdLastSet: 0
+primaryGroupID: 513
+objectSid:: AQUAAAAAAAUVAAAAUVsp5q9EaoIJT0TzUwQAAA==
+accountExpires: 9223372036854775807
+logonCount: 0
+sAMAccountName: adavila
+sAMAccountType: 805306368
+userPrincipalName: adavila@test.com
+objectCategory: CN=Person,CN=Schema,CN=Configuration,DC=test,DC=com
+dSCorePropagationData: 16010101000000.0Z
+
+# search reference
+ref: ldap://ForestDnsZones.test.com/DC=ForestDnsZones,DC=test,DC=com
+
+# search reference
+ref: ldap://DomainDnsZones.test.com/DC=DomainDnsZones,DC=test,DC=com
+
+# search reference
+ref: ldap://test.com/CN=Configuration,DC=test,DC=com
+
+# search result
+search: 2
+result: 0 Success
+
+# numResponses: 5
+# numEntries: 1
+# numReferences: 3
+
+
+
+
+ldapsearch -h 192.168.2.206 -x -D "Administrator@test.com" -w Alex1977 -b "dc=test,dc=com" "cn=alex davila" -s sub "(cn=*)" cn mail sn
+# extended LDIF
+#
+# LDAPv3
+# base <dc=test,dc=com> with scope subtree
+# filter: cn=alex davila
+# requesting: (cn=*) cn mail sn 
+#
+
+# alex davila, Users, test.com
+dn: CN=alex davila,CN=Users,DC=test,DC=com
+cn: alex davila
+sn: davila
+
+# search reference
+ref: ldap://ForestDnsZones.test.com/DC=ForestDnsZones,DC=test,DC=com
+
+# search reference
+ref: ldap://DomainDnsZones.test.com/DC=DomainDnsZones,DC=test,DC=com
+
+# search reference
+ref: ldap://test.com/CN=Configuration,DC=test,DC=com
+
+# search result
+search: 2
+result: 0 Success
+
+# numResponses: 5
+# numEntries: 1
+# numReferences: 3
+
+
+===================================
