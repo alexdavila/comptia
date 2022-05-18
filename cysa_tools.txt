@@ -1,0 +1,64 @@
+DeepScan. example of a static code analysis tool.
+Shodan (shodan.io). organization's current public-facing attack surface. tools that generates a current and historical view of the company's public-facing IP space. first place an adversary might use to conduct reconnaissance on your company's network
+tcpdump ex. tcpdump -i eth0 -w file.pcap. tcpdump -i eth0 -r file.pcap
+VirusTotal. allows you to quickly analyze suspicious files and URLs to detect types of malware
+OWASP Zed Attack Proxy (ZAP). most widely used web application scanner. can search for a variety of vulnerabilities, including cross-site scripting issues.
+Burp suite. (interception proxy) test web applications
+Tamper Data. (interception proxy)
+Nikto. Vulnerability scanner for web servers (command line tool)
+Arachni. Ruby framework for assessing the security of a web application.
+vulnerability scanners. Nessus, Qualys, and OpenVAS
+Nessus Professional. Vulnerability Scanner
+OpenVAS. Open Source. Vulnerability Scanner
+Qualys. Cloud-based vulnerability scanner
+ScoutSuite. used to audit instances and policies created on multi-cloud platforms.
+Prowler. cloud auditing tool, but it can only be used on AWS.
+Pacu. exploitation framework that is used to test the security configurations of an AWS account
+openSCAP. plugin to perform configuration and vulnerability scans
+SIEM solutions. OSSIM (open source). Splunk. QRadar. ArcSight
+secpol.msc. Win. security policy auditor
+sc. Win. allows you to create, start, stop, query, or delete a Windows service
+wmic. Win. Windows Management Instrumentation. Can terminate a service
+services.msc. Win. enable, start, or terminate a running service.
+net use. Win list network shares
+SCCM. Win. Microsoft System Center Configuration Manager. remote control, patch management, software distribution, operating system deployment, network
+access protection, and hardware and software inventory
+GPO. Group Policy Object. allows an administrator to create a policy and deploy it across a large number of devices in the domain or network
+Process Monitor (Win). advanced monitoring tool for Windows that shows real-time file system, Registry, and process/thread activity
+AccessEnum. win. full view of filesystem and registry settings. file with permissions.
+certutil. Win. Check integrity. certutil -hashfile
+MBSA. Win. Microsoft Baseline Security Analyzer. outdated. does not fully support Windows 10 
+psad. Linux. detect port scans
+getfacl. Linux. allows recursive backups of directories, including all permissions to a text file 
+setfacl. Linux. restores those permissions from the backup file 
+auditctl. Linux. monitor permissions and ownership changes of critical files
+PAM. Linux. Pluggable authentication module. /etc/pam.d. 
+file. Linux. Command. encoding, what libraries it is linked to, and its file type
+stat. Linux. Command. last time accessed, permissions, UID and GID bit settings, and other details
+md5sum. Linux, check integrity 
+sha1sum. Linux, check integrity 
+xinetd. Linux. Service started with xientd (systemctl new version)(search for possible backdoor)
+exiftool. read & write metadata
+Mimikatz. post-exploitation tool that dumps passwords from memory, as well as hashes, PINs, and Kerberos tickets
+YARA.  tool to write malware signatures
+BASS. can generate antimalware signatures
+Carving Tools. SIFT (open source). FTK. EnCase. Helix
+Volatility Framework. can capture memory artifacts but is not designed to capture a full virtual machine
+DumpIt. Windows memory capture tools for forensic use
+EnCase. Windows memory capture tools for forensic use
+John the Ripper. Command line tool for crack passwords
+Cain & Abel. crack passwords
+Ophcrack. fastest. crack passwords
+Hashcat. fast. crack passwords
+Scalpel. carving and indexing application. identify files in a partition or volume that is missing its index or file allocation table
+
+URL ENCODE
+%20 -> ' ' (SPACE)
+%3d -> =
+%3A -> :
+%27 -> '
+%22 -> "
+%3C -> <
+%3E -> >
+%40 -> @
+
